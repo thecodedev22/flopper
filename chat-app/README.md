@@ -1,47 +1,171 @@
-# Svelte + Vite
+Flopper
+A decentralized, peer-to-peer chat application built with modern web technologies. Flopper enables secure, real-time messaging without relying on centralized servers.
 
-This template should help get you started developing with Svelte in Vite.
+Features
+Decentralized Architecture: No central server required - messages flow directly between peers
+Real-time Messaging: Instant message delivery using Gun.js peer-to-peer database
+Privacy Focused: Your conversations stay between you and your peers
+Offline Capable: Messages sync when peers come back online
+Lightweight: Built with Svelte for optimal performance
+Cross-platform: Runs in any modern web browser
+Quick Start
+Prerequisites
+Node.js 16 or higher
+npm or yarn package manager
+Installation
+Clone the repository:
+git clone https://github.com/thecodedev22/flopper.git
+cd flopper
+Install dependencies:
+npm install
+Start the development server:
+npm run dev
+Open your browser and navigate to http://localhost:5173
+Production Build
+npm run build
+npm run preview
+Tech Stack
+Frontend Framework: Svelte - Reactive UI framework
+Build Tool: Vite - Fast build tool and dev server
+P2P Database: Gun.js - Decentralized database and sync protocol
+Styling: CSS with modern features
+How It Works
+Flopper leverages Gun.js's peer-to-peer protocol to create a truly decentralized chat experience:
 
-## Recommended IDE Setup
+Peer Discovery: When you join a chat room, Gun.js helps discover other peers
+Message Propagation: Messages are distributed across the peer network
+Conflict Resolution: Gun.js handles message ordering and conflict resolution
+Data Persistence: Messages are stored locally and synced with peers
+Architecture Overview
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│    Peer A   │◄──►│    Peer B   │◄──►│    Peer C   │
+│  (Browser)  │    │  (Browser)  │    │  (Browser)  │
+└─────────────┘    └─────────────┘    └─────────────┘
+       ▲                  ▲                  ▲
+       │                  │                  │
+       └──────────────────┼──────────────────┘
+                          │
+                   ┌─────────────┐
+                   │   Gun.js    │
+                   │  P2P Layer  │
+                   └─────────────┘
+Usage
+Joining a Chat Room
+Enter your username
+Join an existing room or create a new one
+Start messaging with other peers in the room
+Creating Rooms
+Room names are used as identifiers in the Gun.js network. Anyone with the same room name will be connected to the same chat session.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+Message Features
+Text Messages: Send and receive text messages in real-time
+Timestamps: All messages include timestamps
+User Identification: Messages show the sender's username
+Message History: Previous messages are loaded when joining a room
+🔧 Configuration
+Environment Variables
+Create a .env file in the root directory:
 
-## Need an official Svelte framework?
+# Gun.js relay servers (optional)
+VITE_GUN_PEERS=["https://gun-manhattan.herokuapp.com/gun"]
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+# App configuration
+VITE_APP_NAME=Flopper
+VITE_MAX_MESSAGE_LENGTH=500
+Customizing Gun.js Peers
+You can configure which Gun.js relay servers to use by modifying the Gun initialization in your code:
 
-## Technical considerations
+const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
+🛠 Development
+Project Structure
+flopper/
+├── src/
+│   ├── components/          # Svelte components
+│   │   ├── Chat.svelte
+│   │   ├── MessageList.svelte
+│   │   └── UserInput.svelte
+│   ├── stores/              # Svelte stores for state management
+│   │   └── chat.js
+│   ├── utils/               # Utility functions
+│   │   └── gun.js
+│   ├── App.svelte           # Main app component
+│   └── main.js              # Entry point
+├── public/                  # Static assets
+├── package.json
+└── vite.config.js          # Vite configuration
+Available Scripts
+npm run dev - Start development server
+npm run build - Build for production
+npm run preview - Preview production build
+npm run lint - Run ESLint
+npm run format - Format code with Prettier
+Adding New Features
+Create new Svelte components in src/components/
+Add state management in src/stores/
+Update Gun.js integration in src/utils/gun.js
+Test with multiple browser tabs/devices
+Security & Privacy
+Data Privacy
+Messages are stored locally in your browser
+No centralized server logs your conversations
+Data is encrypted during transmission between peers
+Security Considerations
+Gun.js uses cryptographic signatures for data integrity
+Consider implementing end-to-end encryption for sensitive communications
+Room names are public identifiers - choose them carefully
+Deployment
+Static Hosting
+Flopper is a client-side application that can be deployed on any static hosting service:
 
-**Why use this over SvelteKit?**
+Netlify
+npm run build
+# Deploy the 'dist' folder to Netlify
+Vercel
+npm run build
+vercel --prod
+GitHub Pages
+npm run build
+# Push the 'dist' folder to your gh-pages branch
+Self-hosting Gun.js Relay
+For better control, you can run your own Gun.js relay server:
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+npm install gun
+node -e "var Gun = require('gun'); Gun({port: 8080, web: __dirname + '/node_modules/gun'})"
+Contributing
+We welcome contributions! Please follow these steps:
 
-This template contains as little as possible to get started with Vite + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+Fork the repository
+Create a feature branch: git checkout -b feature-name
+Make your changes and test thoroughly
+Commit your changes: git commit -m 'Add some feature'
+Push to the branch: git push origin feature-name
+Submit a pull request
+Development Guidelines
+Follow Svelte best practices
+Use meaningful commit messages
+Test with multiple peers before submitting
+Update documentation for new features
+Troubleshooting
+Common Issues
+Messages not syncing between peers:
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+Check your internet connection
+Verify Gun.js relay servers are accessible
+Try refreshing the page
+Poor performance with many messages:
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+Gun.js automatically handles large datasets
+Consider implementing message pagination for very active rooms
+Connection issues:
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+Some corporate firewalls may block Gun.js connections
+Try using different relay servers
+Check browser console for error messages
+License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `checkJs` in the JS template?**
-
-It is likely that most cases of changing variable types in runtime are likely to be accidental, rather than deliberate. This provides advanced typechecking out of the box. Should you like to take advantage of the dynamically-typed nature of JavaScript, it is trivial to change the configuration.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/sveltejs/svelte-hmr/tree/master/packages/svelte-hmr#preservation-of-local-state).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```js
-// store.js
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
-```
+Acknowledgments
+Gun.js for the amazing peer-to-peer database
+Svelte for the reactive framework
+Vite for the lightning-fast build tool
+The decentralized web community for inspiration

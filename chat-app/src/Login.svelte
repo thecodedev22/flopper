@@ -71,6 +71,9 @@
       <p class="auth-subtitle">
         {isSignupMode ? 'Sign up to get started' : 'Sign in to your account'}
       </p>
+      <div class="login-refresh-note" style="margin-top: 1em; color: #fbbf24; background: rgba(255,255,255,0.15); padding: 0.5em 1em; border-radius: 8px; font-size: 0.95em;">
+        <strong>Note:</strong> After logging in, please refresh the page.
+      </div>
     </div>
 
     <div class="mode-toggle">
