@@ -178,12 +178,13 @@
   }
 
   .bg-animation {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     z-index: 0;
+    pointer-events: none;
   }
 
   .floating-shape {
@@ -234,7 +235,7 @@
     max-width: 100%;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
     position: relative;
-    z-index: 1;
+    z-index: 2;
     transition: all 0.3s ease;
   }
 
