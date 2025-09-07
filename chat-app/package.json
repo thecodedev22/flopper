@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^6.1.1",
+    "@sveltejs/vite-plugin-svelte": "^6.1.4",
     "svelte": "^5.38.1",
     "vite": "^7.1.2"
   },
   "dependencies": {
-    "gun": "^0.2020.1241"
+    "gun": "^0.2020.1241",
+    "lodash.debounce": "^4.0.8"
   }
 }
