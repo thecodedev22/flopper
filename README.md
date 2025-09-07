@@ -52,7 +52,7 @@ npm run preview
 - **P2P Database**: [Gun.js](https://gun.eco/) - Decentralized database and sync protocol
 - **Styling**: CSS with modern features
 
-## 📖 How It Works
+## How It Works
 
 Flopper leverages Gun.js's peer-to-peer protocol to create a truly decentralized chat experience:
 
