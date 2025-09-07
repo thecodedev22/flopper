@@ -1,9 +1,16 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
   import { username, user } from './user';
+
+  const dispatch = createEventDispatcher();
 
   function signout() {
     user.leave();
     username.set('');
+  }
+
+  function openProfile() {
+    dispatch('profile');
   }
 </script>
 
@@ -40,7 +47,7 @@
           </div>
           <div class="user-details">
             <span class="greeting">Welcome back</span>
-            <span class="username">{$username}</span>
+            <span class="username" style="cursor:pointer;" on:click={openProfile}>{$username}</span>
           </div>
         </div>
 
