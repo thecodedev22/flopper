@@ -6,7 +6,6 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     allowedHosts: [
-      ''
       'https://c48b4a35c380.ngrok-free.app '
     ]
   }
