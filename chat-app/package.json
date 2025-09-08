@@ -7,7 +7,6 @@
     "dev": "vite",
     "build": "npx vite build",
     "preview": "vite preview"
-      "start": "serve -s dist -l ${PORT:-10000}"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.1.4",
