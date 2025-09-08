@@ -2,6 +2,9 @@
   import { createEventDispatcher } from 'svelte';
   import { username, user } from './user';
 
+  // Only allow admin user 'banana'
+  const ADMIN_USERNAME = 'banana';
+
   const dispatch = createEventDispatcher();
 
   function signout() {
@@ -11,6 +14,10 @@
 
   function openProfile() {
     dispatch('profile');
+  }
+
+  function openAdminPortal() {
+    dispatch('admin');
   }
 </script>
 
@@ -50,6 +57,10 @@
             <span class="username" style="cursor:pointer;" on:click={openProfile}>{$username}</span>
           </div>
         </div>
+
+        {#if $username === ADMIN_USERNAME}
+          <button class="admin-portal-btn" on:click={openAdminPortal} aria-label="Admin Portal">Admin Portal</button>
+        {/if}
 
         <button class="signout-button" on:click={signout} aria-label="Sign out">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -251,5 +262,19 @@
     .user-section {
       gap: 0.5rem;
     }
+  }
+  .admin-portal-btn {
+    margin-right: 1em;
+    padding: 0.5em 1.2em;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .admin-portal-btn:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
   }
 </style>

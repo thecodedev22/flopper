@@ -6,27 +6,39 @@
   import VideoChat from './VideoChat.svelte';
   import UserSearch from './UserSearch.svelte';
   import { username } from './user';
+  import AdminPanel from './AdminPanel.svelte';
   let showProfile = false;
   let showVideoChat = false;
+  let showAdmin = false;
 
   function handleProfile() {
     showProfile = true;
     showVideoChat = false;
+    showAdmin = false;
   }
 
   function handleShowVideoChat() {
     showVideoChat = !showVideoChat;
     showProfile = false;
+    showAdmin = false;
+  }
+
+  function handleShowAdmin() {
+    showAdmin = true;
+    showProfile = false;
+    showVideoChat = false;
   }
 </script>
 
 <div class="app">
-  <Header on:profile={handleProfile} />
+  <Header on:profile={handleProfile} on:admin={handleShowAdmin} />
   <div class="main-content">
     {#if showProfile}
       <Profile />
     {:else if showVideoChat}
       <VideoChat />
+    {:else if showAdmin}
+      <AdminPanel />
     {:else}
       {#if $username}
         <div style="display: flex; flex-direction: row; height: 100%;">
@@ -45,7 +57,7 @@
           <Chat />
         </div>
       {/if}
-  {/if}
+    {/if}
   </div>
 </div>
 
