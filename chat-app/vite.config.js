@@ -1,3 +1,4 @@
+cat > vite.config.js <<'EOF'
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
@@ -6,8 +7,9 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     allowedHosts: [
-      // Allow all ngrok hosts
-      /^([a-z0-9]+\.)?ngrok(-free)?\.app$/
+      // Allow all ngrok subdomains
+      /^([a-z0-9-]+\.)?ngrok(-free)?\.app$/
     ]
   }
 })
+EOF
