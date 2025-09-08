@@ -4,6 +4,7 @@
   import { getDatabase, ref, set, onValue, push, remove, onChildAdded } from 'firebase/database';
 
   let localStream = null;
+  let darkMode = false;
   let remoteStream = null;
   let peerConnection = null;
   let localVideo;
@@ -143,8 +144,13 @@ function copyRoom() {
   }
 </script>
 
-<main class="video-chat">
-  <h2>Video Chat</h2>
+<main class="video-chat" class:dark-mode={darkMode}>
+  <div class="videochat-header">
+    <h2>Video Chat</h2>
+    <button class="dark-toggle" on:click={() => darkMode = !darkMode} aria-label="Toggle dark mode">
+      {darkMode ? '🌙' : '☀️'}
+    </button>
+  </div>
   <div class="room-input">
     <input placeholder="Room name" bind:value={room} disabled={isStarted} />
     <button on:click={createRoom} disabled={isStarted}>Create Room</button>
@@ -164,27 +170,94 @@ function copyRoom() {
     </div>
     <div>
       <h3>Remote</h3>
+      <!-- svelte-ignore a11y_media_has_caption -->
       <video bind:this={remoteVideo} autoplay playsinline width="320" height="240"></video>
     </div>
   </div>
 </main>
 
 <style>
+:root {
+  --bg: #f7f7fa;
+  --fg: #181a20;
+  --panel: #fff;
+  --border: #e5e7eb;
+  --accent: #667eea;
+  --input-bg: #f0f1f5;
+  --input-fg: #222;
+}
+.dark-mode {
+  --bg: #181a20;
+  --fg: #f7f7fa;
+  --panel: #23262f;
+  --border: #333646;
+  --accent: #a5b4fc;
+  --input-bg: #23262f;
+  --input-fg: #f7f7fa;
+}
+.video-chat {
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+.videochat-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 1rem;
+}
+.dark-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--fg);
+  margin-left: 0.5rem;
+}
 .room-input {
   margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
 .room-input input {
   padding: 0.5rem;
   font-size: 1rem;
   margin-bottom: 0.5rem;
+  background: var(--input-bg);
+  color: var(--input-fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  transition: border 0.2s;
+}
+.room-input input:focus {
+  border-color: var(--accent);
 }
 .room-input button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
   margin: 0.25rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.room-input button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .created-room {
   margin-bottom: 0.5rem;
@@ -192,32 +265,17 @@ function copyRoom() {
   align-items: center;
   gap: 0.5rem;
 }
-.video-chat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.room-input {
-  margin-bottom: 1rem;
-}
-.room-input input {
-  padding: 0.5rem;
-  font-size: 1rem;
-  margin-right: 0.5rem;
-}
-.room-input button {
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
-  margin-right: 0.5rem;
-}
 .videos {
   display: flex;
   gap: 2rem;
   margin-bottom: 1rem;
 }
 video {
-  border: 2px solid #888;
+  border: 2px solid var(--border);
   border-radius: 8px;
   background: #222;
+}
+h2, h3 {
+  color: var(--fg);
 }
 </style>

@@ -1,13 +1,35 @@
-
 <script>
   import { user } from './user';
   
   let username = '';
   let password = '';
+  let confirmPassword = '';
+  let passkey = '';
+  let newPassword = '';
+  let confirmNewPassword = '';
   let isSignupMode = false;
+  let isPasswordResetMode = false;
   let showPassword = false;
+  let showConfirmPassword = false;
+  let showNewPassword = false;
+  let showConfirmNewPassword = false;
+  let showPasskey = false;
   let isLoading = false;
   let errorMessage = '';
+  let successMessage = '';
+  let generatedPasskey = '';
+  let showPasskeyModal = false;
+  
+  // Generate a secure passkey
+  function generatePasskey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 16; i++) {
+      if (i > 0 && i % 4 === 0) result += '-';
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
   
   function login() {
     isLoading = true;
@@ -19,27 +41,93 @@
         errorMessage = err;
       } else {
         errorMessage = '';
-        // Success handling here
+        successMessage = 'Login successful! Please refresh the page.';
       }
     });
   }
   
   function signup() {
+    if (password !== confirmPassword) {
+      errorMessage = 'Passwords do not match';
+      return;
+    }
+    
+    if (password.length < 6) {
+      errorMessage = 'Password must be at least 6 characters';
+      return;
+    }
+    
     isLoading = true;
     errorMessage = '';
+    
+    // Generate passkey for the new account
+    const accountPasskey = generatePasskey();
     
     user.create(username, password, ({ err }) => {
       if (err) {
         isLoading = false;
         errorMessage = err;
       } else {
-        login();
+        // Store the passkey in the user's profile
+        user.get('profile').put({
+          passkey: accountPasskey,
+          created: new Date().toISOString()
+        });
+        
+        generatedPasskey = accountPasskey;
+        showPasskeyModal = true;
+        isLoading = false;
       }
     });
   }
   
+  function resetPassword() {
+    if (!passkey.trim()) {
+      errorMessage = 'Please enter your passkey';
+      return;
+    }
+    
+    if (newPassword !== confirmNewPassword) {
+      errorMessage = 'New passwords do not match';
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      errorMessage = 'New password must be at least 6 characters';
+      return;
+    }
+    
+    isLoading = true;
+    errorMessage = '';
+    
+    // First, try to authenticate with current credentials to verify user exists
+    user.auth(username, 'dummy', ({ err }) => {
+      // We expect this to fail, but it helps us check if user exists
+      
+      // Check if the passkey matches
+      user.get('profile').once((profile) => {
+        if (profile && profile.passkey === passkey.trim()) {
+          // Passkey is correct, proceed with password change
+          // Note: GUN doesn't have a built-in password change method
+          // This is a workaround - in production, you'd need a proper implementation
+          errorMessage = 'Password reset functionality requires server-side implementation for security.';
+          successMessage = 'Passkey verified! Contact support to complete password reset.';
+          isLoading = false;
+        } else {
+          errorMessage = 'Invalid passkey or username';
+          isLoading = false;
+        }
+      });
+    });
+  }
+  
   function handleSubmit() {
-    if (isSignupMode) {
+    errorMessage = '';
+    successMessage = '';
+    
+    if (isPasswordResetMode) {
+      resetPassword();
+    } else if (isSignupMode) {
       signup();
     } else {
       login();
@@ -48,11 +136,57 @@
   
   function toggleMode() {
     isSignupMode = !isSignupMode;
-    errorMessage = '';
+    isPasswordResetMode = false;
+    clearForm();
   }
   
-  function togglePasswordVisibility() {
-    showPassword = !showPassword;
+  function togglePasswordReset() {
+    isPasswordResetMode = !isPasswordResetMode;
+    isSignupMode = false;
+    clearForm();
+  }
+  
+  function clearForm() {
+    username = '';
+    password = '';
+    confirmPassword = '';
+    passkey = '';
+    newPassword = '';
+    confirmNewPassword = '';
+    errorMessage = '';
+    successMessage = '';
+  }
+  
+  function togglePasswordVisibility(field) {
+    switch(field) {
+      case 'password':
+        showPassword = !showPassword;
+        break;
+      case 'confirmPassword':
+        showConfirmPassword = !showConfirmPassword;
+        break;
+      case 'newPassword':
+        showNewPassword = !showNewPassword;
+        break;
+      case 'confirmNewPassword':
+        showConfirmNewPassword = !showConfirmNewPassword;
+        break;
+      case 'passkey':
+        showPasskey = !showPasskey;
+        break;
+    }
+  }
+  
+  function copyPasskey() {
+    navigator.clipboard.writeText(generatedPasskey).then(() => {
+      // Could add a toast notification here
+    });
+  }
+  
+  function closePasskeyModal() {
+    showPasskeyModal = false;
+    // Auto-login after account creation
+    login();
   }
 </script>
 
@@ -66,35 +200,39 @@
   <div class="auth-card">
     <div class="auth-header">
       <h1 class="auth-title">
-        {isSignupMode ? 'Create Account' : 'Welcome Back'}
+        {isPasswordResetMode ? 'Reset Password' : isSignupMode ? 'Create Account' : 'Welcome Back'}
       </h1>
       <p class="auth-subtitle">
-        {isSignupMode ? 'Sign up to get started' : 'Sign in to your account'}
+        {isPasswordResetMode ? 'Enter your passkey to reset your password' : isSignupMode ? 'Sign up to get started' : 'Sign in to your account'}
       </p>
-      <div class="login-refresh-note" style="margin-top: 1em; color: #fbbf24; background: rgba(255,255,255,0.15); padding: 0.5em 1em; border-radius: 8px; font-size: 0.95em;">
-        <strong>Note:</strong> After logging in, please refresh the page.
-      </div>
+      {#if !isPasswordResetMode}
+        <div class="login-refresh-note" style="margin-top: 1em; color: #fbbf24; background: rgba(255,255,255,0.15); padding: 0.5em 1em; border-radius: 8px; font-size: 0.95em;">
+          <strong>Note:</strong> After logging in, please refresh the page.
+        </div>
+      {/if}
     </div>
 
-    <div class="mode-toggle">
-      <div class="toggle-slider" class:signup-mode={isSignupMode}></div>
-      <button 
-        type="button" 
-        class="toggle-option" 
-        class:active={!isSignupMode}
-        on:click={() => isSignupMode = false}
-      >
-        Sign In
-      </button>
-      <button 
-        type="button" 
-        class="toggle-option" 
-        class:active={isSignupMode}
-        on:click={() => isSignupMode = true}
-      >
-        Sign Up
-      </button>
-    </div>
+    {#if !isPasswordResetMode}
+      <div class="mode-toggle">
+        <div class="toggle-slider" class:signup-mode={isSignupMode}></div>
+        <button 
+          type="button" 
+          class="toggle-option" 
+          class:active={!isSignupMode}
+          on:click={() => isSignupMode = false}
+        >
+          Sign In
+        </button>
+        <button 
+          type="button" 
+          class="toggle-option" 
+          class:active={isSignupMode}
+          on:click={() => isSignupMode = true}
+        >
+          Sign Up
+        </button>
+      </div>
+    {/if}
 
     {#if errorMessage}
       <div class="error-message">
@@ -102,70 +240,228 @@
       </div>
     {/if}
 
-    <form on:submit|preventDefault={handleSubmit}>
-      <div class="form-group">
-        <label for="username" class="form-label">Username</label>
-        <input 
-          type="text" 
-          id="username" 
-          name="username"
-          bind:value={username} 
-          minlength="3" 
-          maxlength="16"
-          class="form-input" 
-          placeholder="Enter your username"
-          required
-          disabled={isLoading}
-        >
+    {#if successMessage}
+      <div class="success-message">
+        {successMessage}
       </div>
+    {/if}
 
-      <div class="form-group">
-        <label for="password" class="form-label">Password</label>
-        <div class="password-container">
+    <form on:submit|preventDefault={handleSubmit}>
+      {#if !isPasswordResetMode}
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
           <input 
-            type={showPassword ? 'text' : 'password'}
-            id="password" 
-            name="password"
-            bind:value={password} 
+            type="text" 
+            id="username" 
+            name="username"
+            bind:value={username} 
+            minlength="3" 
+            maxlength="16"
             class="form-input" 
-            placeholder="Enter your password"
+            placeholder="Enter your username"
             required
             disabled={isLoading}
           >
-          <button
-            type="button"
-            class="toggle-password"
-            on:click={togglePasswordVisibility}
+        </div>
+
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <div class="password-container">
+            <input 
+              type={showPassword ? 'text' : 'password'}
+              id="password" 
+              name="password"
+              bind:value={password} 
+              class="form-input" 
+              placeholder="Enter your password"
+              required
+              disabled={isLoading}
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              on:click={() => togglePasswordVisibility('password')}
+              disabled={isLoading}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        {#if isSignupMode}
+          <div class="form-group">
+            <label for="confirmPassword" class="form-label">Confirm Password</label>
+            <div class="password-container">
+              <input 
+                type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword" 
+                name="confirmPassword"
+                bind:value={confirmPassword} 
+                class="form-input" 
+                placeholder="Confirm your password"
+                required
+                disabled={isLoading}
+              >
+              <button
+                type="button"
+                class="toggle-password"
+                on:click={() => togglePasswordVisibility('confirmPassword')}
+                disabled={isLoading}
+              >
+                {showConfirmPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+        {/if}
+      {:else}
+        <!-- Password Reset Mode -->
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
+          <input 
+            type="text" 
+            id="username" 
+            name="username"
+            bind:value={username} 
+            class="form-input" 
+            placeholder="Enter your username"
+            required
             disabled={isLoading}
           >
-            {showPassword ? '🙈' : '👁️'}
-          </button>
         </div>
-      </div>
+
+        <div class="form-group">
+          <label for="passkey" class="form-label">Recovery Passkey</label>
+          <div class="password-container">
+            <input 
+              type={showPasskey ? 'text' : 'password'}
+              id="passkey" 
+              name="passkey"
+              bind:value={passkey} 
+              class="form-input passkey-input" 
+              placeholder="XXXX-XXXX-XXXX-XXXX"
+              required
+              disabled={isLoading}
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              on:click={() => togglePasswordVisibility('passkey')}
+              disabled={isLoading}
+            >
+              {showPasskey ? '🙈' : '👁️'}
+            </button>
+          </div>
+          <div class="field-help">
+            Enter the 16-character passkey you received when creating your account
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="newPassword" class="form-label">New Password</label>
+          <div class="password-container">
+            <input 
+              type={showNewPassword ? 'text' : 'password'}
+              id="newPassword" 
+              name="newPassword"
+              bind:value={newPassword} 
+              class="form-input" 
+              placeholder="Enter new password"
+              required
+              disabled={isLoading}
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              on:click={() => togglePasswordVisibility('newPassword')}
+              disabled={isLoading}
+            >
+              {showNewPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmNewPassword" class="form-label">Confirm New Password</label>
+          <div class="password-container">
+            <input 
+              type={showConfirmNewPassword ? 'text' : 'password'}
+              id="confirmNewPassword" 
+              name="confirmNewPassword"
+              bind:value={confirmNewPassword} 
+              class="form-input" 
+              placeholder="Confirm new password"
+              required
+              disabled={isLoading}
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              on:click={() => togglePasswordVisibility('confirmNewPassword')}
+              disabled={isLoading}
+            >
+              {showConfirmNewPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+      {/if}
 
       <button 
         type="submit" 
         class="submit-btn"
-        disabled={isLoading || !username || !password}
+        disabled={isLoading || !username || (!isPasswordResetMode && !password) || (isPasswordResetMode && (!passkey || !newPassword || !confirmNewPassword)) || (isSignupMode && !confirmPassword)}
       >
         {#if isLoading}
           <span class="loading-spinner"></span>
-          {isSignupMode ? 'Creating account...' : 'Signing in...'}
+          {isPasswordResetMode ? 'Resetting password...' : isSignupMode ? 'Creating account...' : 'Signing in...'}
         {:else}
-          {isSignupMode ? 'Sign Up' : 'Sign In'}
+          {isPasswordResetMode ? 'Reset Password' : isSignupMode ? 'Sign Up' : 'Sign In'}
         {/if}
       </button>
     </form>
 
-    {#if !isSignupMode}
-      <div class="forgot-password">
-        <button type="button" class="forgot-link">
+    <div class="auth-links">
+      {#if isPasswordResetMode}
+        <button type="button" class="auth-link" on:click={toggleMode}>
+          Back to Sign In
+        </button>
+      {:else}
+        <button type="button" class="auth-link" on:click={togglePasswordReset}>
           Forgot your password?
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 </div>
+
+<!-- Passkey Modal -->
+{#if showPasskeyModal}
+  <div class="modal-overlay">
+    <div class="passkey-modal">
+      <div class="modal-header">
+        <h2 class="modal-title">🔑 Your Recovery Passkey</h2>
+        <p class="modal-subtitle">Save this passkey securely - you'll need it to reset your password</p>
+      </div>
+      
+      <div class="passkey-display">
+        <div class="passkey-value">{generatedPasskey}</div>
+        <button type="button" class="copy-btn" on:click={copyPasskey} title="Copy to clipboard">
+          📋 Copy
+        </button>
+      </div>
+      
+      <div class="modal-warning">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-text">
+          <strong>Important:</strong> Store this passkey in a safe place. It's the only way to recover your account if you forget your password.
+        </div>
+      </div>
+      
+      <button type="button" class="modal-btn" on:click={closePasskeyModal}>
+        I've saved my passkey
+      </button>
+    </div>
+  </div>
+{/if}
 
 <style>
   .auth-container {
@@ -339,6 +635,12 @@
     backdrop-filter: blur(10px);
   }
 
+  .form-input.passkey-input {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
   .form-input::placeholder {
     color: rgba(255, 255, 255, 0.5);
   }
@@ -380,6 +682,12 @@
   .toggle-password:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  .field-help {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 0.5rem;
   }
 
   .submit-btn {
@@ -458,12 +766,23 @@
     backdrop-filter: blur(10px);
   }
 
-  .forgot-password {
+  .success-message {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #bbf7d0;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .auth-links {
     text-align: center;
     margin-top: 1.5rem;
   }
 
-  .forgot-link {
+  .auth-link {
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.8);
@@ -471,59 +790,124 @@
     font-family: inherit;
     cursor: pointer;
     transition: color 0.3s ease;
+    text-decoration: underline;
   }
 
-  .forgot-link:hover {
+  .auth-link:hover {
     color: white;
   }
 
-  .success-content {
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+  }
+
+  .passkey-modal {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 24px;
+    padding: 2.5rem;
+    width: 450px;
+    max-width: 90vw;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-header {
     text-align: center;
-    padding: 2rem 0;
-  }
-
-  .success-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-    animation: bounce 2s ease-in-out infinite;
-  }
-
-  @keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {
-      transform: translateY(0);
-    }
-    40% {
-      transform: translateY(-10px);
-    }
-    60% {
-      transform: translateY(-5px);
-    }
-  }
-
-  .success-title {
-    color: white;
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  }
-
-  .success-subtitle {
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 1.1rem;
     margin-bottom: 2rem;
   }
 
-  .success-actions {
+  .modal-title {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-subtitle {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  .passkey-display {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
     gap: 1rem;
   }
 
-  .dashboard-btn, .logout-btn {
-    padding: 16px 24px;
+  .passkey-value {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #22d3ee;
+    letter-spacing: 0.1em;
+    flex: 1;
+    text-align: center;
+  }
+
+  .copy-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .copy-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .modal-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .warning-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .warning-text {
+    color: #fcd34d;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .modal-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
     border-radius: 12px;
+    color: white;
     font-size: 1.1rem;
     font-weight: 600;
     font-family: inherit;
@@ -531,36 +915,28 @@
     transition: all 0.3s ease;
   }
 
-  .dashboard-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  }
-
-  .dashboard-btn:hover {
+  .modal-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
   }
 
-  .logout-btn {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    transform: translateY(-2px);
-  }
-
   @media (max-width: 480px) {
-    .auth-card {
+    .auth-card, .passkey-modal {
       padding: 2rem 1.5rem;
       margin: 1rem;
     }
     
-    .auth-title {
+    .auth-title, .modal-title {
       font-size: 1.75rem;
+    }
+
+    .passkey-display {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .passkey-value {
+      font-size: 1rem;
     }
   }
 </style>

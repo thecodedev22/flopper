@@ -3,9 +3,11 @@
  export let message;
 export let sender;
 
-const messageClass = message.who === sender ? 'sent' : 'received';
-// Updated DiceBear API endpoint - using 'personas' style as replacement for deprecated 'human'
-const avatar = `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(message.who)}`;
+const normalize = v => (v || '').toString().trim().toLowerCase();
+const messageClass = normalize(message.who) === normalize(sender) ? 'sent' : 'received';
+// Use normalized sender for avatar seed for consistency
+const avatarSeed = messageClass === 'sent' ? normalize(sender) : normalize(message.who);
+const avatar = `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(avatarSeed)}`;
 const ts = new Date(message.when);
 </script>
 
