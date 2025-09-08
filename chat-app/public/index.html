@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flopper - Decentralized P2P Chat</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+            background: #0a0a0a;
+            color: #00ff41;
+            overflow-x: hidden;
+            line-height: 1.4;
+            cursor: default;
+        }
+
+        .scanlines::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.03) 2px,
+                rgba(0, 255, 65, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .terminal {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 65, 0.3),
+                inset 0 0 20px rgba(0, 255, 65, 0.1);
+            margin: 20px;
+            min-height: calc(100vh - 40px);
+            position: relative;
+        }
+
+        .terminal-header {
+            background: #1a1a1a;
+            padding: 12px 20px;
+            border-bottom: 1px solid #00ff41;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .terminal-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .close { background: #ff5555; }
+        .minimize { background: #ffb86c; }
+        .maximize { background: #50fa7b; }
+
+        .terminal-title {
+            color: #00ff41;
+            font-size: 14px;
+            margin-left: auto;
+        }
+
+        .terminal-content {
+            padding: 30px;
+            height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .prompt {
+            color: #00ff41;
+            display: inline;
+        }
+
+        .cursor {
+            background: #00ff41;
+            animation: blink 1s infinite;
+            width: 8px;
+            height: 20px;
+            display: inline-block;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .line {
+            margin-bottom: 8px;
+            min-height: 20px;
+        }
+
+        .typing {
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 2px solid #00ff41;
+            animation: typing 3s steps(40) 1s forwards, blink-cursor 1s infinite;
+            width: 0;
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes blink-cursor {
+            0%, 50% { border-color: #00ff41; }
+            51%, 100% { border-color: transparent; }
+        }
+
+        .ascii-art {
+            color: #00ff41;
+            font-size: 12px;
+            line-height: 1.2;
+            margin: 30px 0;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .feature-list {
+            margin: 20px 0;
+        }
+
+        .feature-item {
+            margin: 8px 0;
+            opacity: 0;
+            animation: fadeInUp 0.8s forwards;
+        }
+
+        .feature-item:nth-child(1) { animation-delay: 3s; }
+        .feature-item:nth-child(2) { animation-delay: 3.2s; }
+        .feature-item:nth-child(3) { animation-delay: 3.4s; }
+        .feature-item:nth-child(4) { animation-delay: 3.6s; }
+        .feature-item:nth-child(5) { animation-delay: 3.8s; }
+        .feature-item:nth-child(6) { animation-delay: 4s; }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .command-section {
+            margin: 40px 0;
+            opacity: 0;
+            animation: fadeInUp 0.8s forwards;
+            animation-delay: 4.5s;
+        }
+
+        .command {
+            background: rgba(0, 255, 65, 0.1);
+            padding: 15px;
+            border-left: 3px solid #00ff41;
+            margin: 15px 0;
+            border-radius: 0 5px 5px 0;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .success { color: #50fa7b; }
+        .warning { color: #ffb86c; }
+        .error { color: #ff5555; }
+        .info { color: #8be9fd; }
+
+        .network-diagram {
+            margin: 30px 0;
+            opacity: 0;
+            animation: fadeInUp 0.8s forwards;
+            animation-delay: 5s;
+        }
+
+        .cta-section {
+            margin: 50px 0;
+            text-align: center;
+            opacity: 0;
+            animation: fadeInUp 0.8s forwards;
+            animation-delay: 5.5s;
+        }
+
+        .button {
+            background: transparent;
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            padding: 15px 30px;
+            margin: 10px;
+            cursor: pointer;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .button:hover {
+            background: #00ff41;
+            color: #0a0a0a;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .glitch {
+            animation: glitch 2s infinite;
+        }
+
+        @keyframes glitch {
+            0%, 100% { transform: translate(0); }
+            10% { transform: translate(-2px, -1px); }
+            20% { transform: translate(2px, 1px); }
+            30% { transform: translate(-1px, 2px); }
+            40% { transform: translate(1px, -1px); }
+            50% { transform: translate(-2px, 2px); }
+            60% { transform: translate(2px, -2px); }
+            70% { transform: translate(-1px, -1px); }
+            80% { transform: translate(1px, 2px); }
+            90% { transform: translate(-2px, -1px); }
+        }
+
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.1;
+        }
+
+        @media (max-width: 768px) {
+            .terminal {
+                margin: 10px;
+                min-height: calc(100vh - 20px);
+            }
+            
+            .terminal-content {
+                padding: 20px;
+            }
+            
+            .ascii-art {
+                font-size: 8px;
+            }
+            
+            .button {
+                display: block;
+                margin: 10px auto;
+            }
+        }
+    </style>
+</head>
+<body class="scanlines">
+    <canvas class="matrix-bg" id="matrix"></canvas>
+    
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-buttons">
+                <div class="terminal-button close"></div>
+                <div class="terminal-button minimize"></div>
+                <div class="terminal-button maximize"></div>
+            </div>
+            <div class="terminal-title">user@decentralized:~/flopper $</div>
+        </div>
+        
+        <div class="terminal-content">
+            <div class="line">
+                <span class="prompt">root@decentralized:~$ </span>
+                <span class="typing">./flopper --init</span>
+            </div>
+            
+            <div class="ascii-art">
+<pre>
+ ███████╗██╗      ██████╗ ██████╗ ██████╗ ███████╗██████╗ 
+ ██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗
+ █████╗  ██║     ██║   ██║██████╔╝██████╔╝█████╗  ██████╔╝
+ ██╔══╝  ██║     ██║   ██║██╔═══╝ ██╔═══╝ ██╔══╝  ██╔══██╗
+ ██║     ███████╗╚██████╔╝██║     ██║     ███████╗██║  ██║
+ ╚═╝     ╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝
+</pre>
+                <div style="margin-top: 20px; text-align: center; color: #8be9fd;">
+                    [ DECENTRALIZED • PEER-TO-PEER • SECURE ]
+                </div>
+            </div>
+
+            <div class="line">
+                <span class="prompt">$</span> <span class="success">Initializing P2P chat protocol...</span>
+            </div>
+            <div class="line">
+                <span class="prompt">$</span> <span class="info">Loading Gun.js decentralized database...</span>
+            </div>
+            <div class="line">
+                <span class="prompt">$</span> <span class="success">✓ Peer discovery enabled</span>
+            </div>
+            <div class="line">
+                <span class="prompt">$</span> <span class="success">✓ End-to-end encryption ready</span>
+            </div>
+
+            <div class="feature-list">
+                <div class="line">
+                    <span class="prompt">$</span> <span class="info">cat features.txt</span>
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">DECENTRALIZED</span> - No central servers, pure P2P
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">REAL-TIME</span> - Instant message delivery via Gun.js
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">PRIVACY-FIRST</span> - Your data stays with you
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">OFFLINE-CAPABLE</span> - Messages sync when back online
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">LIGHTWEIGHT</span> - Built with Svelte for performance
+                </div>
+                <div class="feature-item">
+                    <span class="prompt">➤</span> <span class="success">OPEN-SOURCE</span> - Fully transparent and auditable
+                </div>
+            </div>
+
+            <div class="network-diagram">
+                <div class="line">
+                    <span class="prompt">$</span> <span class="info">visualize --network-topology</span>
+                </div>
+                <pre style="color: #8be9fd; margin: 20px 0; font-size: 12px;">
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Peer A    │◄──►│   Peer B    │◄──►│   Peer C    │
+│ (Browser)   │    │ (Browser)   │    │ (Browser)   │
+└─────────────┘    └─────────────┘    └─────────────┘
+       ▲                  ▲                  ▲
+       │                  │                  │
+       └──────────────────┼──────────────────┘
+                          │
+                ┌─────────────┐
+                │   Gun.js    │
+                │  P2P Layer  │
+                └─────────────┘
+                </pre>
+            </div>
+
+            <div class="command-section">
+                <div class="line">
+                    <span class="prompt">$</span> <span class="info">quick_start.sh</span>
+                </div>
+                
+                <div class="command">
+                    <div class="line">
+                        <span class="prompt">#</span> Clone the repository
+                    </div>
+                    <div class="line">
+                        git clone https://github.com/thecodedev22/flopper.git
+                    </div>
+                    <div class="line">
+                        cd flopper && npm install
+                    </div>
+                </div>
+
+                <div class="command">
+                    <div class="line">
+                        <span class="prompt">#</span> Start development server
+                    </div>
+                    <div class="line">
+                        npm run dev
+                    </div>
+                    <div class="line">
+                        <span class="success">➤ Server running at http://localhost:5173</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="line">
+                <span class="prompt">$</span> <span class="info">tech_stack --list</span>
+            </div>
+            <div class="line">
+                <span class="prompt">├──</span> <span class="warning">Frontend:</span> Svelte (Reactive UI)
+            </div>
+            <div class="line">
+                <span class="prompt">├──</span> <span class="warning">Build Tool:</span> Vite (Lightning fast)
+            </div>
+            <div class="line">
+                <span class="prompt">├──</span> <span class="warning">P2P Database:</span> Gun.js (Decentralized sync)
+            </div>
+            <div class="line">
+                <span class="prompt">└──</span> <span class="warning">Styling:</span> Modern CSS
+            </div>
+
+            <div class="cta-section">
+                <div class="line glitch">
+                    <span class="prompt">$</span> <span style="color: #ff79c6; font-size: 16px;">READY TO BREAK FREE FROM BIG TECH?</span>
+                </div>
+                <div style="margin: 30px 0;">
+                    <a href="https://github.com/thecodedev22/flopper" class="button" target="_blank">
+                        → VIEW SOURCE CODE
+                    </a>
+                    <a href="http://localhost:5173" class="button">
+                        → LAUNCH APP
+                    </a>
+                </div>
+                <div style="margin: 20px 0;">
+                    <a href="https://github.com/thecodedev22/flopper/releases" class="button" style="border-color: #50fa7b; color: #50fa7b;">
+                        → DOWNLOAD RELEASE
+                    </a>
+                </div>
+            </div>
+
+            <div class="line" style="margin-top: 50px; opacity: 0; animation: fadeInUp 0.8s forwards; animation-delay: 6s;">
+                <span class="prompt">$</span> <span style="color: #6272a4;">Made with ❤️ for the decentralized web</span>
+            </div>
+            
+            <div class="line" style="opacity: 0; animation: fadeInUp 0.8s forwards; animation-delay: 6.2s;">
+                <span class="prompt">$</span> <span class="cursor"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Matrix rain effect
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const matrix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()_+-=[]{}|;':\",./<>?";
+        const matrixArray = matrix.split("");
+
+        const fontSize = 14;
+        const columns = canvas.width / fontSize;
+
+        const drops = [];
+        for(let x = 0; x < columns; x++) {
+            drops[x] = 1;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.04)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#00ff41';
+            ctx.font = fontSize + 'px Fira Code';
+
+            for(let i = 0; i < drops.length; i++) {
+                const text = matrixArray[Math.floor(Math.random() * matrixArray.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        setInterval(draw, 35);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Terminal click sound effect (optional)
+        document.addEventListener('click', () => {
+            // You can add a subtle click sound here if desired
+        });
+    </script>
+</body>
+</html>
