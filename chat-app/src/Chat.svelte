@@ -3,11 +3,13 @@
 
 import Login from './Login.svelte';
 import ChatMessage from './Chatmessage.svelte';
-import { onMount } from 'svelte';
+import { onMount, onDestroy } from 'svelte';
 import { username, user } from './user';
 import debounce from 'lodash.debounce';
 import GUN from 'gun';
 import SEA from 'gun/sea';
+import { encryptMessage, decryptMessage } from './pgp.js';
+import PGPKeys from './PGPKeys.svelte'; // Import your key management component
 
 const db = GUN();
 let newMessage;
@@ -21,10 +23,15 @@ let isTyping = false;
 let showEmojiPicker = false;
 const emojis = ['😀','😂','😍','😎','😭','😡','👍','🙏','🎉','🔥','💯','🥳','😅','😇','😜','🤔','😬','😱','😏','😴'];
 
+// PGP passphrase variable
+let pgpPassphrase = '';
+
+// Toggle emoji picker visibility
 function toggleEmojiPicker() {
   showEmojiPicker = !showEmojiPicker;
 }
 
+// Add emoji to the message input
 function addEmoji(emoji) {
   newMessage = (newMessage || '') + emoji;
   showEmojiPicker = false;
@@ -37,19 +44,22 @@ let uploadProgress = 0;
 let isUploading = false;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit for now
 
+// Auto-scroll to the bottom of the chat
 function autoScroll() {
   setTimeout(() => scrollBottom?.scrollIntoView({ behavior: 'smooth' }), 50);
   unreadMessages = false;
 }
 
+// Watcher for scroll events to manage auto-scroll behavior
 function watchScroll(e) {
   canAutoScroll = (e.target.scrollTop || Infinity) > lastScrollTop;
   lastScrollTop = e.target.scrollTop;
 }
 
+// Debounced version of the scroll watcher
 $: debouncedWatchScroll = debounce(watchScroll, 1000);
 
-// Handle typing indicator
+// Handle typing indicator visibility
 function handleTyping() {
   if (newMessage && !isTyping) {
     isTyping = true;
@@ -57,13 +67,16 @@ function handleTyping() {
   }
 }
 
+// On component mount, set up the chat message listener
 onMount(() => {
-  // Listen for all chat messages (both text and files) in real time
+  hasPGPKey = !!localStorage.getItem('pgp_privateKey');
+  if (hasPGPKey && !pgpPassphrase) {
+    pgpPassphrase = prompt('Enter your PGP passphrase:');
+  }
   db.get('chat')
     .map()
     .on(async (data, id) => {
       if (!data) return;
-      const key = '#foo';
       let senderAlias;
       try {
         senderAlias = data.who || (await db.user(data).get('alias'));
@@ -71,11 +84,10 @@ onMount(() => {
         senderAlias = 'Unknown';
       }
       let message;
-      // Check if it's a file message or text message
       if (data.fileData) {
         // It's a file message - decrypt file data
-        const decryptedFileData = await SEA.decrypt(data.fileData, key);
-        const decryptedFileName = await SEA.decrypt(data.fileName, key);
+        const decryptedFileData = await SEA.decrypt(data.fileData, '#foo');
+        const decryptedFileName = await SEA.decrypt(data.fileName, '#foo');
         message = {
           who: senderAlias,
           what: null, // No text content
@@ -87,8 +99,14 @@ onMount(() => {
           fileType: data.fileType
         };
       } else {
-        // It's a regular text message
-        const decryptedMessage = await SEA.decrypt(data.what, key);
+        // PGP decryption for text messages
+        let decryptedMessage = '';
+        try {
+          const privateKey = localStorage.getItem('pgp_privateKey') || '';
+          decryptedMessage = await decryptMessage(data.what, privateKey, pgpPassphrase);
+        } catch (e) {
+          decryptedMessage = '[Unable to decrypt]';
+        }
         message = {
           who: senderAlias,
           what: decryptedMessage + '',
@@ -111,9 +129,12 @@ onMount(() => {
     });
 });
 
+// Send a new text message
 async function sendMessage() {
   if (!newMessage?.trim()) return;
-  const secret = await SEA.encrypt(newMessage, '#foo');
+  // TODO: Replace with actual recipient's public key
+  const recipientPublicKey = localStorage.getItem('pgp_publicKey') || '';
+  const secret = await encryptMessage(newMessage, recipientPublicKey);
   const msgObj = {
     what: secret,
     timestamp: Date.now(),
@@ -121,8 +142,6 @@ async function sendMessage() {
     type: 'text'
   };
   const index = new Date().toISOString();
-  // Debug log for sending
-  console.log('[GunDB] Sending message:', msgObj);
   db.get('chat').get(index).put(msgObj);
   newMessage = '';
   canAutoScroll = true;
@@ -226,6 +245,79 @@ function handleKeyDown(event) {
   }
   handleTyping();
 }
+
+// New reactive variables and listeners
+let hasPGPKey = false;
+let chatListener;
+
+// Reactively update hasPGPKey when $username or localStorage changes
+$: hasPGPKey = !!localStorage.getItem('pgp_privateKey') && !!$username;
+
+// Prompt for passphrase reactively
+$: if (hasPGPKey && !pgpPassphrase) {
+  pgpPassphrase = prompt('Enter your PGP passphrase:');
+}
+
+// Set up GunDB listener only when ready
+$: if (hasPGPKey && pgpPassphrase) {
+  // Remove previous listener if any
+  if (chatListener && typeof chatListener.off === 'function') chatListener.off();
+  chatListener = db.get('chat')
+    .map()
+    .on(async (data, id) => {
+      if (!data) return;
+      let senderAlias;
+      try {
+        senderAlias = data.who || (await db.user(data).get('alias'));
+      } catch (e) {
+        senderAlias = 'Unknown';
+      }
+      let message;
+      if (data.fileData) {
+        // It's a file message - decrypt file data
+        const decryptedFileData = await SEA.decrypt(data.fileData, '#foo');
+        const decryptedFileName = await SEA.decrypt(data.fileName, '#foo');
+        message = {
+          who: senderAlias,
+          what: null,
+          when: (data && data.timestamp) ? data.timestamp : Date.now(),
+          type: 'file',
+          fileData: decryptedFileData,
+          fileName: decryptedFileName,
+          fileSize: data.fileSize,
+          fileType: data.fileType
+        };
+      } else {
+        // PGP decryption for text messages
+        let decryptedMessage = '';
+        try {
+          const privateKey = localStorage.getItem('pgp_privateKey') || '';
+          decryptedMessage = await decryptMessage(data.what, privateKey, pgpPassphrase);
+        } catch (e) {
+          decryptedMessage = '[Unable to decrypt]';
+        }
+        message = {
+          who: senderAlias,
+          what: decryptedMessage + '',
+          when: (data && data.timestamp) ? data.timestamp : Date.now(),
+          type: 'text'
+        };
+      }
+      if ((message.what && message.what !== 'null' && message.what !== 'undefined') || message.type === 'file') {
+        messages = [...messages.filter(m => m.when !== message.when), message].sort((a, b) => a.when - b.when).slice(-100);
+        if (canAutoScroll) {
+          autoScroll();
+        } else {
+          unreadMessages = true;
+        }
+      }
+    });
+}
+
+// Clean up GunDB listener on destroy
+onDestroy(() => {
+  if (chatListener && typeof chatListener.off === 'function') chatListener.off();
+});
 </script>
 
 <div 
@@ -237,108 +329,114 @@ function handleKeyDown(event) {
   role="region"
 >
   {#if $username}
-    <header class="chat-header">
-      <div class="header-content">
-        <div class="chat-info">
-          <div class="status-dot"></div>
-          <div>
-            <h2 class="chat-title">General Chat</h2>
-            <p class="chat-subtitle">{messages.length} messages • End-to-end encrypted • Files up to {formatFileSize(MAX_FILE_SIZE)}</p>
+    {#if !hasPGPKey}
+      <div class="pgp-warning">
+        <h3>🔐 Set up your PGP keys to use the chat</h3>
+        <PGPKeys />
+      </div>
+    {:else}
+      <header class="chat-header">
+        <div class="header-content">
+          <div class="chat-info">
+            <div class="status-dot"></div>
+            <div>
+              <h2 class="chat-title">General Chat</h2>
+              <p class="chat-subtitle">{messages.length} messages • End-to-end encrypted • Files up to {formatFileSize(MAX_FILE_SIZE)}</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="action-btn" title="Search messages" aria-label="Search messages">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="M21 21l-4.35-4.35"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="header-actions">
-          <button class="action-btn" title="Search messages" aria-label="Search messages">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="M21 21l-4.35-4.35"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+      </header>
 
-    <main class="messages-container" bind:this={messagesContainer} on:scroll={debouncedWatchScroll}>
-      <div class="messages-list">
-        {#if messages.length === 0}
-          <div class="empty-state">
-            <div class="empty-icon">💬</div>
-            <h3>No messages yet</h3>
-            <p>Be the first to start the conversation!</p>
-          </div>
-        {/if}
-        
-        {#each messages as message (message.when)}
-          <ChatMessage {message} sender={$username || ''} />
-        {/each}
-        
-        {#if isTyping && newMessage}
-          <div class="typing-indicator">
-            <div class="typing-bubble">
-              <div class="typing-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
+      <main class="messages-container" bind:this={messagesContainer} on:scroll={debouncedWatchScroll}>
+        <div class="messages-list">
+          {#if messages.length === 0}
+            <div class="empty-state">
+              <div class="empty-icon">💬</div>
+              <h3>No messages yet</h3>
+              <p>Be the first to start the conversation!</p>
             </div>
-          </div>
-        {/if}
-        
-        {#if isUploading}
-          <div class="upload-progress">
-            <div class="upload-bubble">
-              <div class="upload-info">
-                <span>📤 Uploading file...</span>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width: {uploadProgress}%"></div>
+          {/if}
+          
+          {#each messages as message (message.when)}
+            <ChatMessage {message} sender={$username || ''} />
+          {/each}
+          
+          {#if isTyping && newMessage}
+            <div class="typing-indicator">
+              <div class="typing-bubble">
+                <div class="typing-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
                 </div>
               </div>
             </div>
-          </div>
-        {/if}
-        
-        <div class="scroll-anchor" bind:this={scrollBottom}></div>
-      </div>
-    </main>
-    
-    <footer class="message-form-container">
-      <form class="message-form" on:submit|preventDefault={sendMessage}>
-        <div class="input-container">
-          <div class="input-wrapper">
-            <input 
-              type="text" 
-              placeholder="Type your message..." 
-              bind:value={newMessage} 
-              on:keydown={handleKeyDown}
-              maxlength="500"
-              class="message-input"
-              autocomplete="off"
-            />
-            <div class="input-actions">
-              <button 
-                type="button" 
-                class="file-btn" 
-                title="Attach file"
-                on:click={openFileDialog}
-                disabled={isUploading}
-              >
-                📎
-              </button>
-              <button 
-                type="button" 
-                class="emoji-btn" 
-                title="Add emoji"
-                on:click={toggleEmojiPicker}
-                aria-label="Add emoji"
-              >
-                😊
-              </button>
-              {#if showEmojiPicker}
-                <div class="emoji-picker">
-                  {#each emojis as emoji}
-                    <button type="button" class="emoji-choice" on:click={() => addEmoji(emoji)}>{emoji}</button>
-                  {/each}
+          {/if}
+          
+          {#if isUploading}
+            <div class="upload-progress">
+              <div class="upload-bubble">
+                <div class="upload-info">
+                  <span>📤 Uploading file...</span>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: {uploadProgress}%"></div>
+                  </div>
                 </div>
-              {/if}
+              </div>
+            </div>
+          {/if}
+          
+          <div class="scroll-anchor" bind:this={scrollBottom}></div>
+        </div>
+      </main>
+      
+      <footer class="message-form-container">
+        <form class="message-form" on:submit|preventDefault={sendMessage}>
+          <div class="input-container">
+            <div class="input-wrapper">
+              <input 
+                type="text" 
+                placeholder="Type your message..." 
+                bind:value={newMessage} 
+                on:keydown={handleKeyDown}
+                maxlength="500"
+                class="message-input"
+                autocomplete="off"
+              />
+              <div class="input-actions">
+                <button 
+                  type="button" 
+                  class="file-btn" 
+                  title="Attach file"
+                  on:click={openFileDialog}
+                  disabled={isUploading}
+                >
+                  📎
+                </button>
+                <button 
+                  type="button" 
+                  class="emoji-btn" 
+                  title="Add emoji"
+                  on:click={toggleEmojiPicker}
+                  aria-label="Add emoji"
+                >
+                  😊
+                </button>
+                {#if showEmojiPicker}
+                  <div class="emoji-picker">
+                    {#each emojis as emoji}
+                      <button type="button" class="emoji-choice" on:click={() => addEmoji(emoji)}>{emoji}</button>
+                    {/each}
+                  </div>
+                {/if}
 <style>
 .emoji-picker {
   position: absolute;
@@ -367,71 +465,72 @@ function handleKeyDown(event) {
   background: #f3f4f6;
 }
 </style>
+              </div>
+            </div>
+            <button 
+              type="submit" 
+              disabled={!newMessage?.trim() || isUploading} 
+              class="send-button"
+              title="Send message (Ctrl+Enter)"
+              aria-label="Send message"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22,2 15,22 11,13 2,9 22,2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="input-footer">
+            <div class="char-count" class:warning={newMessage?.length > 400}>
+              {newMessage?.length || 0}/500
+            </div>
+            <div class="shortcuts">
+              <span class="shortcut">Ctrl+Enter to send • Click 📎 or drag files to upload</span>
             </div>
           </div>
-          <button 
-            type="submit" 
-            disabled={!newMessage?.trim() || isUploading} 
-            class="send-button"
-            title="Send message (Ctrl+Enter)"
-            aria-label="Send message"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22,2 15,22 11,13 2,9 22,2"/>
+        </form>
+      </footer>
+      
+      <!-- Hidden file input -->
+      <input 
+        type="file" 
+        bind:this={fileInput} 
+        on:change={handleFileSelect}
+        accept="*/*"
+        multiple
+        style="display: none;"
+      />
+      
+      {#if isDragging}
+        <div class="drag-overlay">
+          <div class="drag-content">
+            <div class="drag-icon">📁</div>
+            <h3>Drop files to upload</h3>
+            <p>Files will be encrypted and sent securely</p>
+          </div>
+        </div>
+      {/if}
+      
+      {#if !canAutoScroll && unreadMessages}
+        <div class="scroll-button-container">
+    <button class="scroll-button new-messages" on:click={autoScroll} aria-label="Scroll to bottom (new messages)">
+            <div class="scroll-content">
+              <span class="unread-count">New</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6,9 12,15 18,9"/>
+              </svg>
+            </div>
+          </button>
+        </div>
+      {:else if !canAutoScroll}
+        <div class="scroll-button-container">
+    <button class="scroll-button" on:click={autoScroll} aria-label="Scroll to bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
         </div>
-        <div class="input-footer">
-          <div class="char-count" class:warning={newMessage?.length > 400}>
-            {newMessage?.length || 0}/500
-          </div>
-          <div class="shortcuts">
-            <span class="shortcut">Ctrl+Enter to send • Click 📎 or drag files to upload</span>
-          </div>
-        </div>
-      </form>
-    </footer>
-    
-    <!-- Hidden file input -->
-    <input 
-      type="file" 
-      bind:this={fileInput} 
-      on:change={handleFileSelect}
-      accept="*/*"
-      multiple
-      style="display: none;"
-    />
-    
-    {#if isDragging}
-      <div class="drag-overlay">
-        <div class="drag-content">
-          <div class="drag-icon">📁</div>
-          <h3>Drop files to upload</h3>
-          <p>Files will be encrypted and sent securely</p>
-        </div>
-      </div>
-    {/if}
-    
-    {#if !canAutoScroll && unreadMessages}
-      <div class="scroll-button-container">
-  <button class="scroll-button new-messages" on:click={autoScroll} aria-label="Scroll to bottom (new messages)">
-          <div class="scroll-content">
-            <span class="unread-count">New</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6,9 12,15 18,9"/>
-            </svg>
-          </div>
-        </button>
-      </div>
-    {:else if !canAutoScroll}
-      <div class="scroll-button-container">
-  <button class="scroll-button" on:click={autoScroll} aria-label="Scroll to bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6,9 12,15 18,9"/>
-          </svg>
-        </button>
-      </div>
+      {/if}
     {/if}
   {:else}
     <main class="login-container">
