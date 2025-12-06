@@ -231,11 +231,11 @@ We welcome contributions! Please follow these steps:
 - Try using different relay servers
 - Check browser console for error messages
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Gun.js](https://gun.eco/) for the amazing peer-to-peer database
 - [Svelte](https://svelte.dev/) for the reactive framework
@@ -244,4 +244,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for the decentralized web**
